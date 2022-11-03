@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=clock-width, initial-scale=1.0">
+		<meta http-equiv="X-UA-Compatible" content="ie=edge">
+		<title></title>
+	</head>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap.min.css">
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
+	<body>
+		<div class="container" id="app">
+			<!-- 登录框 -->
+			<div v-if="token==null" style="max-width: 400px;margin: 20px auto;padding: 0 16px;">
+				<img src="./logo.svg" height="40px">
+				<h1 style="padding: 32px 0 12px 0;">欢迎使用草莓架控制系统！</h1>
+				<div v-if="!login.checked">
+					<div class="form-floating mb-3">
+						<input v-model="login.mail" type="email"
+							:class="{'form-control':true,'is-invalid':invalid.mail}" placeholder="name@example.com">
+						<label>邮件地址</label>
+					</div>
+					<button class="btn" @click="check()" :disabled="disabled.check">下一步</button>
+				</div>
+				<div v-else>
+					<div v-if="!this.login.verify" class="form-floating mb-3">
+						<input v-model="login.code" type="text" :class="{'form-control':true,'is-invalid':invalid.code}"
+							placeholder="1234">
+						<label>验证码</label>
+					</div>
+					<div class="form-floating mb-3">
+						<input v-model="login.password" type="password"
+							:class="{'form-control':true,'is-invalid':invalid.password}" placeholder="password">
+						<label>密码</label>
+					</div>
+					<button class="btn" @click="sign()" :disabled="disabled.sign">登录</button>
+				</div>
+			</div>
+			<!-- 面板 -->
+			<div v-else>
+				<h1>欢迎使用草莓架控制系统！</h1>
+				<!-- 友链 -->
+				<div class="card mb-3">
+					<h2 class="card-header">定时任务</h2>
+					<div class="card-body">
+						<table class="table">
+							<thead>
+								<tr>
+									<th scope="col">id</th>
+									<th scope="col">名称</th>
+									<th scope="col">开始时间</th>
+									<th scope="col">持续时间/水量</th>
+									<th scope="col">操作</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(clock,id) in clocks.list">
+									<th style="vertical-align: middle;">{{id+1}}</th>
+									<td>
+										<input type="text" class="form-control" v-model="clock.name">
+									</td>
+									<td>
+										<input type="time" class="form-control" v-model="clock.start">
+									</td>
+									<td style="white-space: nowrap;">
+										<input type="text" class="form-control" v-model="clock.end"
+											style="display: inline !important;width: calc(100% - 42px);">
+										<select class="form-control" v-model="clock.way" style="display: inline !important;width: 42px;">
+											<option value="m">分</option>
+											<option value="L">升</option>
+										</select>
+									</td>
+									<td>
+										<div class="btn-group">
+											<button class="btn btn-outline-secondary" type="button"
+												@click="remove('clocks',id)" :disabled="disabled.remove.clocks">
+												<i class="bi bi-trash"></i>
+											</button>
+											<button class="btn btn-outline-secondary" type="button"
+												@click="update('clocks',id)" :disabled="disabled.update.clocks">
+												<i class="bi bi-check-lg"></i>
+											</button>
+										</div>
+									</td>
+								</tr>
+								<tr>
+									<th style="vertical-align: middle;">#</th>
+									<td>
+										<input type="text"
+											:class="{'form-control':true,'is-invalid':invalid.push.clocks}"
+											v-model="clocks.push.name">
+									</td>
+									<td>
+										<input type="time"
+											:class="{'form-control':true,'is-invalid':invalid.push.clocks}"
+											v-model="clocks.push.start">
+									</td>
+									<td style="white-space: nowrap;">
+										<input type="number"
+											:class="{'form-control':true,'is-invalid':invalid.push.clocks}"
+											v-model="clocks.push.end"
+											style="display: inline !important;width: calc(100% - 42px);">
+										<select :class="{'form-control':true,'is-invalid':invalid.push.clocks}"
+											style="display: inline !important;width: 42px;" v-model="clocks.push.way">
+											<option value="m">分</option>
+											<option value="L">升</option>
+										</select>
+									</td>
+									<td>
+										<div class="btn-group">
+											<button class="btn btn-outline-secondary" type="button"
+												@click="push('clocks')" :disabled="disabled.push.clocks">
+												<i class="bi bi-plus-lg"></i>
+											</button>
+											<button class="btn btn-outline-secondary" type="button"
+												@click="list('clocks')" :disabled="disabled.list.clocks">
+												<i class="bi bi-arrow-clockwise"></i>
+											</button>
+										</div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.min.js" type="text/javascript" charset="utf-8"></script>
+		<script type="text/javascript">
+			let app = new Vue({
+				el: "#app",
+				data: {
+					token: null,
+					invalid: {
+						mail: false,
+						code: false,
+						password: false,
+						push: {
+							clocks: false
+						}
+					},
+					disabled: {
+						check: false,
+						sign: false,
+						list: {
+							clocks: false
+						},
+						push: {
+							clocks: false
+						},
+						remove: {
+							clocks: false
+						},
+						update: {
+							clocks: false
+						}
+					},
+					login: {
+						checked: false,
+						id: null,
+						mail: null,
+						verify: false,
+						code: null,
+						password: null
+					},
+					clocks: {
+						list: [{
+							id: 1,
+							name: "早晨",
+							start: "08:00",
+							end: "10",
+							way: "m"
+						}],
+						push: {
+							name: null,
+							start: null,
+							end: null,
+							way: null
+						}
+					}
+				},
+				methods: {
+					check: function() {
+						this.disabled.check = true
+						this.invalid.mail = false
+						fetch("https://api.galasp.cn/users/check?" + new URLSearchParams(this.login))
+							.then(r => {
+								this.disabled.check = false
+								switch (r.status) {
+									case 201:
+										this.login.verify = false
+										break
+									case 200:
+										this.login.verify = true
+										break
+									case 403:
+										this.invalid.mail = true
+										return
+								}
+								r.text().then(id => {
+									this.login.id = id
+									this.login.checked = true
+								})
+							})
+					},
+					sign: function() {
+						this.disabled.sign = true
+						this.invalid.code = false
+						this.invalid.password = false
+						let api = "https://api.galasp.cn/users/sign?"
+						if (!this.login.verify) {
+							//没验证
+							api = "https://api.galasp.cn/users/verify?"
+						}
+						fetch(api + new URLSearchParams(this.login))
+							.then(r => {
+								this.disabled.sign = false
+								if (r.status == 200) {
+									r.text()
+										.then(token => {
+											this.token = token
+											sessionStorage.setItem("token", token)
+											this.load()
+										})
+								} else {
+									this.invalid.code = !this.login.verify
+									this.invalid.password = true && this.login.verify
+								}
+							})
+
+					},
+					load: function() {
+						this.user = JSON.parse(decodeURIComponent(escape(window.atob(this.token.toString()
+							.split(".")[1]
+							.replace(/-/g, "+")
+							.replace(/_/g, "/")))))
+						//加载clocks
+						this.list("clocks")
+						//鉴权
+						if (this.user.position != "king") {
+							Object.keys(this.disabled).forEach(item => {
+								Object.keys(this.disabled[item]).forEach(k => {
+									this.disabled[item][k] = true
+								})
+							})
+						}
+					},
+					list: function(item) {
+						this.disabled.list[item] = true
+						// this[item].list = 
+						this.disabled.list[item] = false
+					},
+					push: function(item) {
+						//开始前
+						this.invalid.push[item] = false
+						this.disabled.push[item] = true
+						//结束后
+						this.disabled.push[item] = false
+						let r={
+							status:200
+						}
+						switch (r.status) {
+							case 200:
+								// this.list(item)
+								this[item].list.push(JSON.parse(JSON.stringify(this[item].push)))
+								Object.keys(this[item].push).forEach(k => {
+									this[item].push[k] = null
+								})
+								break
+							case 403:
+								this.invalid.push[item] = true
+								break
+						}
+					},
+					remove: function(item, id) {
+						this.disabled.remove[item] = true
+						fetch(`https://api.galasp.cn/${item}/remove?` + new URLSearchParams(this[item].list[id]), {
+								'headers': {
+									'Authorization': this.token
+								}
+							})
+							.then(r => {
+								this.disabled.remove[item] = false
+								switch (r.status) {
+									case 200:
+										this.list(item)
+										break
+									case 403:
+										break
+								}
+							})
+					},
+					update: function(item, id) {
+						this.disabled.update[item] = true
+						fetch(`https://api.galasp.cn/${item}/update?` + new URLSearchParams(this[item].list[id]), {
+								'headers': {
+									'Authorization': this.token
+								}
+							})
+							.then(r => {
+								this.disabled.update[item] = false
+								switch (r.status) {
+									case 200:
+										this.list(item)
+										break
+									case 403:
+										break
+								}
+							})
+					}
+				},
+				created: function() {
+					this.token = sessionStorage.getItem("token")
+					if (this.token != null) {
+						this.load()
+					}
+				}
+			})
+		</script>
+	</body>
+</html>

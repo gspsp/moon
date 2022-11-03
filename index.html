@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8">
+	</head>
+	<body style="margin: 0">
+		<div id="container" style="height: 99vh"></div>
+		<script type="text/javascript" src="https://train.galasp.cn/npm/echarts@5.3.2/dist/echarts.min.js"></script>
+		<button id="jiaoshui" style="position: absolute;top: 4px;right: 80px;">浇水</button>
+		<script type="text/javascript">
+			let watering=false;
+			let jiaoshui=document.getElementById("jiaoshui");
+			jiaoshui.addEventListener("click",()=>{
+				jiaoshui.innerText=watering?"浇水":"停止"
+				ws.send(JSON.stringify({
+					cmd:"call",
+					args:{
+						sn:"abcdefg",
+						msg:!watering?"watering":"stopWatering"
+					}
+				}))
+				watering=!watering
+			})
+			
+			var dom = document.getElementById('container');
+			var myChart = echarts.init(dom, null, {
+				renderer: 'canvas',
+				useDirtyRect: false
+			});
+			var app = {};
+
+			var option;
+
+			const categories = (function() {
+				let now = new Date();
+				let res = [];
+				let len = 10;
+				while (len--) {
+					res.unshift(now.toLocaleTimeString().replace(/^\D*/, ''));
+					now = new Date(+now - 2000);
+				}
+				return res;
+			})();
+			const categories2 = (function() {
+				let res = [];
+				let len = 10;
+				while (len--) {
+					res.push(10 - len - 1);
+				}
+				return res;
+			})();
+			const h = (function() {
+				let res = [];
+				let len = 10;
+				while (len--) {
+					res.push(Math.round(Math.random() * 40));
+				}
+				return res;
+			})();
+			const t = (function() {
+				let res = [];
+				let len = 0;
+				while (len < 10) {
+					res.push(+(Math.random() * 10 + 5).toFixed(1));
+					len++;
+				}
+				return res;
+			})();
+			const trsd = (function() {
+				let res = [];
+				let len = 10;
+				while (len--) {
+					res.push(30.3);
+				}
+				return res;
+			})();
+			option = {
+				title: {
+					text: 'Dynamic Data'
+				},
+				tooltip: {
+					trigger: 'axis',
+					axisPointer: {
+						type: 'cross',
+						label: {
+							backgroundColor: '#283b56'
+						}
+					}
+				},
+				legend: {},
+				toolbox: {
+					show: true,
+					feature: {
+						dataView: {
+							readOnly: false
+						},
+						restore: {},
+						saveAsImage: {},
+					}
+				},
+				dataZoom: {
+					show: false,
+					start: 0,
+					end: 100
+				},
+				xAxis: [{
+						type: 'category',
+						boundaryGap: true,
+						data: categories
+					},
+					{
+						type: 'category',
+						boundaryGap: true,
+						data: categories2
+					}
+				],
+				yAxis: [{
+						type: 'value',
+						scale: true,
+						min: -20,
+						boundaryGap: [0.2, 0.2],
+						axisLabel: {
+							formatter: "{value} ℃",
+						}
+					},
+					{
+						type: 'value',
+						scale: true,
+						max: 100,
+						min: 0,
+						boundaryGap: [0.2, 0.2],
+						axisLabel: {
+							formatter: "{value} ％",
+						}
+					},
+					{
+						type: 'value',
+						scale: true,
+						max: 100,
+						min: 0,
+						boundaryGap: [0.2, 0.2],
+						axisLabel: {
+							formatter: "{value} ％",
+						}
+					}
+				],
+				series: [{
+						name: '湿度',
+						type: 'line',
+						xAxisIndex: 1,
+						yAxisIndex: 1,
+						data: h
+					},
+					{
+						name: '温度',
+						type: 'line',
+						data: t
+					},
+					{
+						name: '土壤湿度',
+						xAxisIndex: 1,
+						yAxisIndex: 1,
+						type: 'bar',
+						data: trsd
+					}
+				]
+			};
+			app.count = 11;
+			var ws = new WebSocket("ws://119.29.115.242");
+
+			ws.onopen = function(evt) {
+				console.log("Connection open ...");
+				ws.send("Hello WebSockets!");
+			};
+
+			ws.onmessage = function(evt) {
+				let row = JSON.parse(evt.data)
+				if (row.dht != undefined) {
+					let dht = row.dht.split(',')
+					console.log(dht)
+					let axisData = new Date().toLocaleTimeString().replace(/^\D*/, '');
+					h.shift();
+					h.push(dht[0]);
+					t.shift();
+					t.push(dht[1]);
+
+					categories.shift();
+					categories.push(axisData);
+					categories2.shift();
+					categories2.push(app.count++);
+					myChart.setOption({
+						xAxis: [{
+								data: categories
+							},
+							{
+								data: categories2
+							}
+						],
+						series: [{
+								data: h
+							},
+							{
+								data: t
+							},
+							{
+								data: trsd
+							}
+						]
+					});
+				}
+			};
+			setInterval(function() {
+				ws.send('{"cmd":"get","args":{"sn":"abcdefg"}}')
+			}, 2000);
+
+			if (option && typeof option === 'object') {
+				myChart.setOption(option);
+			}
+
+			window.addEventListener('resize', myChart.resize);
+		</script>
+	</body>
+</html>
