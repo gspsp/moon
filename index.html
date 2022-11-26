@@ -5,219 +5,246 @@
 	</head>
 	<body style="margin: 0">
 		<div id="container" style="height: 99vh"></div>
-		<script type="text/javascript" src="https://train.galasp.cn/npm/echarts@5.3.2/dist/echarts.min.js"></script>
-		<button id="jiaoshui" style="position: absolute;top: 4px;right: 80px;">浇水</button>
-		<script type="text/javascript">
-			let watering=false;
-			let jiaoshui=document.getElementById("jiaoshui");
-			jiaoshui.addEventListener("click",()=>{
-				jiaoshui.innerText=watering?"浇水":"停止"
-				ws.send(JSON.stringify({
-					cmd:"call",
-					args:{
-						sn:"abcdefg",
-						msg:!watering?"watering":"stopWatering"
-					}
-				}))
-				watering=!watering
-			})
-			
-			var dom = document.getElementById('container');
-			var myChart = echarts.init(dom, null, {
-				renderer: 'canvas',
-				useDirtyRect: false
-			});
-			var app = {};
+		<script type="text/javascript" src="https://train.galasp.cn/npm/echarts@5.4.0/dist/echarts.min.js"></script>
+		<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
+
+		<div style="position: absolute;top: 4px;left: 100px;">
+			实时：
+			空气湿度<span id="dhth">Nah</span>%
+			空气温度<span id="dhtt">Nah</span>℃
+			土壤湿度<span id="smeh">Nah</span>%
+		</div>
+		<div style="position: absolute;top: 4px;right: 80px;">
+			从
+			<input id="from" type="datetime-local">
+			到
+			<input id="to" type="datetime-local">
+			<button id="query">查询</button>
+			<button id="jiaoshui">浇水</button>
+		</div>
+		<script type="text/javascript">
+			let einput_form = document.getElementById("from")
+			einput_form.value = new Date(new Date().getTime() + new Date().getTimezoneOffset() * -60 * 1000 - 24 * 60 * 60 * 1000).toISOString().slice(0, 19)
+			let einput_to = document.getElementById("to")
+			einput_to.value = new Date(new Date().getTime() + new Date().getTimezoneOffset() * -60 * 1000).toISOString().slice(0, 19)
+			document.getElementById("query").onclick = function() {
+				load()
+			}
+			var chartDom = document.getElementById('container');
+			var myChart = echarts.init(chartDom);
 			var option;
 
-			const categories = (function() {
-				let now = new Date();
-				let res = [];
-				let len = 10;
-				while (len--) {
-					res.unshift(now.toLocaleTimeString().replace(/^\D*/, ''));
-					now = new Date(+now - 2000);
-				}
-				return res;
-			})();
-			const categories2 = (function() {
-				let res = [];
-				let len = 10;
-				while (len--) {
-					res.push(10 - len - 1);
-				}
-				return res;
-			})();
-			const h = (function() {
-				let res = [];
-				let len = 10;
-				while (len--) {
-					res.push(Math.round(Math.random() * 40));
-				}
-				return res;
-			})();
-			const t = (function() {
-				let res = [];
-				let len = 0;
-				while (len < 10) {
-					res.push(+(Math.random() * 10 + 5).toFixed(1));
-					len++;
-				}
-				return res;
-			})();
-			const trsd = (function() {
-				let res = [];
-				let len = 10;
-				while (len--) {
-					res.push(30.3);
-				}
-				return res;
-			})();
 			option = {
 				title: {
-					text: 'Dynamic Data'
+					text: '草莓架监控',
+					left: 'left'
+				},
+				grid: {
+					bottom: 80
+				},
+				toolbox: {
+					feature: {
+						dataZoom: {
+							yAxisIndex: 'none'
+						},
+						restore: {},
+						saveAsImage: {}
+					}
 				},
 				tooltip: {
 					trigger: 'axis',
 					axisPointer: {
 						type: 'cross',
+						animation: false,
 						label: {
-							backgroundColor: '#283b56'
+							backgroundColor: '#505765'
 						}
 					}
 				},
-				legend: {},
-				toolbox: {
-					show: true,
-					feature: {
-						dataView: {
-							readOnly: false
-						},
-						restore: {},
-						saveAsImage: {},
-					}
+				legend: {
+					data: ['Flow', 'Rainfall'],
+					left: 10
 				},
-				dataZoom: {
-					show: false,
+				dataZoom: [{
+					show: true,
+					realtime: true,
 					start: 0,
 					end: 100
-				},
+				}],
+				//x时间轴
 				xAxis: [{
-						type: 'category',
-						boundaryGap: true,
-						data: categories
+					type: 'category',
+					boundaryGap: false,
+					axisLine: {
+						onZero: false
 					},
-					{
-						type: 'category',
-						boundaryGap: true,
-						data: categories2
-					}
-				],
+					// prettier-ignore
+					data: []
+				}],
+				//y单位轴
 				yAxis: [{
-						type: 'value',
-						scale: true,
-						min: -20,
-						boundaryGap: [0.2, 0.2],
-						axisLabel: {
-							formatter: "{value} ℃",
-						}
-					},
-					{
-						type: 'value',
-						scale: true,
-						max: 100,
-						min: 0,
-						boundaryGap: [0.2, 0.2],
-						axisLabel: {
-							formatter: "{value} ％",
-						}
-					},
-					{
-						type: 'value',
-						scale: true,
-						max: 100,
-						min: 0,
-						boundaryGap: [0.2, 0.2],
-						axisLabel: {
-							formatter: "{value} ％",
-						}
-					}
-				],
-				series: [{
 						name: '湿度',
-						type: 'line',
-						xAxisIndex: 1,
-						yAxisIndex: 1,
-						data: h
+						type: 'value',
+						axisLabel: {
+							formatter: "{value} %",
+						},
 					},
 					{
 						name: '温度',
+						alignTicks: true,
+						type: 'value',
+						axisLabel: {
+							formatter: "{value} ℃",
+						},
+					},
+				],
+				//内容轴
+				series: [{
+						name: '空气湿度',
 						type: 'line',
-						data: t
+						symbol: "none",
+						lineStyle: {
+							width: 1
+						},
+						emphasis: {
+							focus: 'series'
+						},
+						// prettier-ignore
+						data: []
+					},
+					{
+						name: '空气温度',
+						type: 'line',
+						symbol: "none",
+						yAxisIndex: 1,
+						lineStyle: {
+							width: 1
+						},
+						emphasis: {
+							focus: 'series'
+						},
+						// prettier-ignore
+						data: []
 					},
 					{
 						name: '土壤湿度',
-						xAxisIndex: 1,
+						type: 'line',
+						symbol: "none",
 						yAxisIndex: 1,
-						type: 'bar',
-						data: trsd
+						lineStyle: {
+							width: 1
+						},
+						emphasis: {
+							focus: 'series'
+						},
+						// prettier-ignore
+						data: []
 					}
 				]
 			};
-			app.count = 11;
-			var ws = new WebSocket("ws://119.29.115.242");
+			let lock = false;
 
-			ws.onopen = function(evt) {
-				console.log("Connection open ...");
-				ws.send("Hello WebSockets!");
-			};
-
-			ws.onmessage = function(evt) {
-				let row = JSON.parse(evt.data)
-				if (row.dht != undefined) {
-					let dht = row.dht.split(',')
-					console.log(dht)
-					let axisData = new Date().toLocaleTimeString().replace(/^\D*/, '');
-					h.shift();
-					h.push(dht[0]);
-					t.shift();
-					t.push(dht[1]);
-
-					categories.shift();
-					categories.push(axisData);
-					categories2.shift();
-					categories2.push(app.count++);
-					myChart.setOption({
-						xAxis: [{
-								data: categories
-							},
-							{
-								data: categories2
-							}
-						],
-						series: [{
-								data: h
-							},
-							{
-								data: t
-							},
-							{
-								data: trsd
-							}
-						]
-					});
-				}
-			};
-			setInterval(function() {
-				ws.send('{"cmd":"get","args":{"sn":"abcdefg"}}')
-			}, 2000);
-
-			if (option && typeof option === 'object') {
-				myChart.setOption(option);
+			function load() {
+				fetch("http://mointer.galasp.cn/sensors/get?" + new URLSearchParams({
+					from: new Date(einput_form.value).getTime(),
+					to: new Date(einput_to.value).getTime()
+				})).then(r => r.json()).then(rows => {
+					if (!lock) {
+						lock = true
+						document.getElementById("dhth").innerText = rows[rows.length - 1].dhth
+						document.getElementById("dhtt").innerText = rows[rows.length - 1].dhtt
+						document.getElementById("smeh").innerText = rows[rows.length - 1].smeh
+					}
+					// console.log(rows)
+					option.xAxis[0].data = []
+					option.series[0].data = []
+					option.series[1].data = []
+					option.series[2].data = []
+					rows.forEach(row => {
+						// console.log(row)
+						// console.log(option)
+						option.xAxis[0].data.push(row.updatedAt)
+						option.series[0].data.push(row.dhth)
+						option.series[1].data.push(row.dhtt)
+						option.series[2].data.push(row.smeh)
+					})
+					option.xAxis[0].data.map(function(str) {
+						return str.replace(' ', '\n');
+					})
+					option && myChart.setOption(option);
+				})
 			}
+			load()
+		</script>
+		<script>
+			const clientId = 'mqttjs_' + Math.random().toString(16).substr(2, 8)
 
-			window.addEventListener('resize', myChart.resize);
+			const host = 'ws://broker.galasp.cn:8083'
+
+			console.log('Connecting mqtt client')
+			const client = mqtt.connect(host, {
+				keepalive: 60,
+				clientId: clientId,
+				protocolId: 'MQTT',
+				protocolVersion: 4,
+				clean: true,
+				reconnectPeriod: 1000,
+				connectTimeout: 30 * 1000,
+				will: {
+					topic: 'WillMsg',
+					payload: 'Connection Closed abnormally..!',
+					qos: 0,
+					retain: false
+				},
+			})
+
+			client.on('error', (err) => {
+				console.log('Connection error: ', err)
+				client.end()
+			})
+
+			client.on('reconnect', () => {
+				console.log('Reconnecting...')
+			})
+			client.on('connect', () => {
+				console.log('Client connected:' + clientId)
+				// Subscribe
+				client.subscribe('from-4001-light', {
+					qos: 0
+				})
+			})
+			let dhtPattern = /report:dht;humidity:([0-9\.]+?);temperature:([0-9\.]+?);/
+			let smePattern = /report:sme;humidity:([0-9\.]+?);/
+			client.on('message', (topic, message, packet) => {
+				console.log(message.toString())
+				let msg = message.toString()
+				if (dhtPattern.test(msg)) {
+					let data = dhtPattern.exec(msg)
+					document.getElementById("dhth").innerText = data[1]
+					document.getElementById("dhtt").innerText = data[2]
+				} else if (smePattern.test(msg)) {
+					let data = smePattern.exec(msg)
+					document.getElementById("smeh").innerText = data[1]
+				}
+			})
+			let watering = false
+			document.getElementById("jiaoshui").onclick = function() {
+				if (!watering) {
+					client.publish('to-4001-light', 'cmd:waterStart;', {
+						qos: 0,
+						retain: false
+					})
+					watering = true
+				} else {
+					client.publish('to-4001-light', 'cmd:waterStop;', {
+						qos: 0,
+						retain: false
+					})
+					watering = false
+				}
+				jiaoshui.innerText = !watering ? "浇水" : "停止"
+			}
 		</script>
 	</body>
 </html>

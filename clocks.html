@@ -7,37 +7,12 @@
 		<title></title>
 	</head>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap.min.css">
+	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
 	<body>
 		<div class="container" id="app">
-			<!-- 登录框 -->
-			<div v-if="token==null" style="max-width: 400px;margin: 20px auto;padding: 0 16px;">
-				<img src="./logo.svg" height="40px">
-				<h1 style="padding: 32px 0 12px 0;">欢迎使用草莓架控制系统！</h1>
-				<div v-if="!login.checked">
-					<div class="form-floating mb-3">
-						<input v-model="login.mail" type="email"
-							:class="{'form-control':true,'is-invalid':invalid.mail}" placeholder="name@example.com">
-						<label>邮件地址</label>
-					</div>
-					<button class="btn" @click="check()" :disabled="disabled.check">下一步</button>
-				</div>
-				<div v-else>
-					<div v-if="!this.login.verify" class="form-floating mb-3">
-						<input v-model="login.code" type="text" :class="{'form-control':true,'is-invalid':invalid.code}"
-							placeholder="1234">
-						<label>验证码</label>
-					</div>
-					<div class="form-floating mb-3">
-						<input v-model="login.password" type="password"
-							:class="{'form-control':true,'is-invalid':invalid.password}" placeholder="password">
-						<label>密码</label>
-					</div>
-					<button class="btn" @click="sign()" :disabled="disabled.sign">登录</button>
-				</div>
-			</div>
 			<!-- 面板 -->
-			<div v-else>
+			<div>
 				<h1>欢迎使用草莓架控制系统！</h1>
 				<!-- 友链 -->
 				<div class="card mb-3">
@@ -49,7 +24,7 @@
 									<th scope="col">id</th>
 									<th scope="col">名称</th>
 									<th scope="col">开始时间</th>
-									<th scope="col">持续时间/水量</th>
+									<th scope="col">水量</th>
 									<th scope="col">操作</th>
 								</tr>
 							</thead>
@@ -63,21 +38,15 @@
 										<input type="time" class="form-control" v-model="clock.start">
 									</td>
 									<td style="white-space: nowrap;">
-										<input type="text" class="form-control" v-model="clock.end"
-											style="display: inline !important;width: calc(100% - 42px);">
-										<select class="form-control" v-model="clock.way" style="display: inline !important;width: 42px;">
-											<option value="m">分</option>
-											<option value="L">升</option>
-										</select>
+										<input type="text" class="form-control" v-model="clock.end" style="display: inline !important;width: calc(100% - 42px);">
+										升
 									</td>
 									<td>
 										<div class="btn-group">
-											<button class="btn btn-outline-secondary" type="button"
-												@click="remove('clocks',id)" :disabled="disabled.remove.clocks">
+											<button class="btn btn-outline-secondary" type="button" @click="remove('clocks',id)" :disabled="disabled.remove.clocks">
 												<i class="bi bi-trash"></i>
 											</button>
-											<button class="btn btn-outline-secondary" type="button"
-												@click="update('clocks',id)" :disabled="disabled.update.clocks">
+											<button class="btn btn-outline-secondary" type="button" @click="update('clocks')" :disabled="disabled.update.clocks">
 												<i class="bi bi-check-lg"></i>
 											</button>
 										</div>
@@ -86,34 +55,21 @@
 								<tr>
 									<th style="vertical-align: middle;">#</th>
 									<td>
-										<input type="text"
-											:class="{'form-control':true,'is-invalid':invalid.push.clocks}"
-											v-model="clocks.push.name">
+										<input type="text" :class="{'form-control':true,'is-invalid':invalid.push.clocks}" v-model="clocks.push.name">
 									</td>
 									<td>
-										<input type="time"
-											:class="{'form-control':true,'is-invalid':invalid.push.clocks}"
-											v-model="clocks.push.start">
+										<input type="time" :class="{'form-control':true,'is-invalid':invalid.push.clocks}" v-model="clocks.push.start">
 									</td>
 									<td style="white-space: nowrap;">
-										<input type="number"
-											:class="{'form-control':true,'is-invalid':invalid.push.clocks}"
-											v-model="clocks.push.end"
-											style="display: inline !important;width: calc(100% - 42px);">
-										<select :class="{'form-control':true,'is-invalid':invalid.push.clocks}"
-											style="display: inline !important;width: 42px;" v-model="clocks.push.way">
-											<option value="m">分</option>
-											<option value="L">升</option>
-										</select>
+										<input type="number" :class="{'form-control':true,'is-invalid':invalid.push.clocks}" v-model="clocks.push.end" style="display: inline !important;width: calc(100% - 42px);">
+										升
 									</td>
 									<td>
 										<div class="btn-group">
-											<button class="btn btn-outline-secondary" type="button"
-												@click="push('clocks')" :disabled="disabled.push.clocks">
+											<button class="btn btn-outline-secondary" type="button" @click="push('clocks')" :disabled="disabled.push.clocks">
 												<i class="bi bi-plus-lg"></i>
 											</button>
-											<button class="btn btn-outline-secondary" type="button"
-												@click="list('clocks')" :disabled="disabled.list.clocks">
+											<button class="btn btn-outline-secondary" type="button" @click="list('clocks')" :disabled="disabled.list.clocks">
 												<i class="bi bi-arrow-clockwise"></i>
 											</button>
 										</div>
@@ -126,6 +82,44 @@
 			</div>
 		</div>
 		<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.min.js" type="text/javascript" charset="utf-8"></script>
+		<script>
+			const clientId = 'mqttjs_' + Math.random().toString(16).substr(2, 8)
+
+			const host = 'ws://broker.galasp.cn:8083'
+
+			console.log('Connecting mqtt client')
+			const client = mqtt.connect(host, {
+				keepalive: 60,
+				clientId: clientId,
+				protocolId: 'MQTT',
+				protocolVersion: 4,
+				clean: true,
+				reconnectPeriod: 1000,
+				connectTimeout: 30 * 1000,
+				will: {
+					topic: 'WillMsg',
+					payload: 'Connection Closed abnormally..!',
+					qos: 0,
+					retain: false
+				},
+			})
+
+			client.on('error', (err) => {
+				console.log('Connection error: ', err)
+				client.end()
+			})
+
+			client.on('reconnect', () => {
+				console.log('Reconnecting...')
+			})
+			client.on('connect', () => {
+				console.log('Client connected:' + clientId)
+				// Subscribe
+				client.subscribe('to-admin', {
+					qos: 0
+				})
+			})
+		</script>
 		<script type="text/javascript">
 			let app = new Vue({
 				el: "#app",
@@ -230,24 +224,16 @@
 
 					},
 					load: function() {
-						this.user = JSON.parse(decodeURIComponent(escape(window.atob(this.token.toString()
-							.split(".")[1]
-							.replace(/-/g, "+")
-							.replace(/_/g, "/")))))
-						//加载clocks
 						this.list("clocks")
-						//鉴权
-						if (this.user.position != "king") {
-							Object.keys(this.disabled).forEach(item => {
-								Object.keys(this.disabled[item]).forEach(k => {
-									this.disabled[item][k] = true
-								})
-							})
-						}
 					},
 					list: function(item) {
 						this.disabled.list[item] = true
 						// this[item].list = 
+
+						client.publish('from-admin', 'list', {
+							qos: 0,
+							retain: false
+						})
 						this.disabled.list[item] = false
 					},
 					push: function(item) {
@@ -255,67 +241,38 @@
 						this.invalid.push[item] = false
 						this.disabled.push[item] = true
 						//结束后
+						this[item].list.push(JSON.parse(JSON.stringify(this[item].push)))
+						Object.keys(this[item].push).forEach(k => {
+							this[item].push[k] = null
+						})
+						this.update('clocks')
 						this.disabled.push[item] = false
-						let r={
-							status:200
-						}
-						switch (r.status) {
-							case 200:
-								// this.list(item)
-								this[item].list.push(JSON.parse(JSON.stringify(this[item].push)))
-								Object.keys(this[item].push).forEach(k => {
-									this[item].push[k] = null
-								})
-								break
-							case 403:
-								this.invalid.push[item] = true
-								break
-						}
 					},
 					remove: function(item, id) {
 						this.disabled.remove[item] = true
-						fetch(`https://api.galasp.cn/${item}/remove?` + new URLSearchParams(this[item].list[id]), {
-								'headers': {
-									'Authorization': this.token
-								}
-							})
-							.then(r => {
-								this.disabled.remove[item] = false
-								switch (r.status) {
-									case 200:
-										this.list(item)
-										break
-									case 403:
-										break
-								}
-							})
+						this[item].list.splice(id, 1)
+						this.update('clocks')
+						this.disabled.remove[item] = false
 					},
 					update: function(item, id) {
 						this.disabled.update[item] = true
-						fetch(`https://api.galasp.cn/${item}/update?` + new URLSearchParams(this[item].list[id]), {
-								'headers': {
-									'Authorization': this.token
-								}
-							})
-							.then(r => {
-								this.disabled.update[item] = false
-								switch (r.status) {
-									case 200:
-										this.list(item)
-										break
-									case 403:
-										break
-								}
-							})
+						client.publish('from-admin', 'update,' + JSON.stringify(this[item].list), {
+							qos: 0,
+							retain: false
+						})
+						this.disabled.update[item] = false
 					}
 				},
 				created: function() {
-					this.token = sessionStorage.getItem("token")
-					if (this.token != null) {
-						this.load()
-					}
+					this.list("clocks")
+					client.on('message', (topic, message, packet) => {
+						console.log(message.toString())
+						let msg = message.toString()
+						this.clocks.list = JSON.parse(msg)
+					})
 				}
 			})
 		</script>
+
 	</body>
 </html>
